@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ficha de Mascota</title>
+  <style>
+    :root {
+      --bg-color: #f7f5f0;
+      --card-bg: #ffffff;
+      --text-primary: #2c302e;
+      --text-secondary: #6e7571;
+      --accent-color: #2e5a44;
+      --accent-hover: #234735;
+      --border-radius: 16px;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      width: 100%;
+      max-width: 400px;
+      border-radius: var(--border-radius);
+      padding: 30px 24px;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .card-header h1 {
+      font-size: 1.1rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-secondary);
+      margin: 0 0 10px 0;
+    }
+
+    .pet-name {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--accent-color);
+      margin: 0 0 20px 0;
+    }
+
+    .info-section {
+      background-color: #f9f9f8;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .info-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .info-content {
+      font-size: 1rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    .btn-alerta {
+      background-color: var(--accent-color);
+      color: #ffffff;
+      border: none;
+      width: 100%;
+      padding: 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.1s ease;
+      box-shadow: 0 4px 12px rgba(46, 90, 68, 0.2);
+    }
+
+    .btn-alerta:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-alerta:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="card-header">
+      <h1>Mascota Encontrada</h1>
+    </div>
+
+    <!-- Banner para cuando la mascota está perdida -->
+    <div id="status-banner"></div>
+
+    <h2 id="pet-name" class="pet-name">Cargando...</h2>
+
+    <div class="info-section">
+      <div class="info-label">Información Médica</div>
+      <div id="pet-medical" class="info-content">Cargando datos...</div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-label">Contacto del Dueño</div>
+      <div id="pet-phone" class="info-content">Cargando teléfono...</div>
+    </div>
+
+    <button id="btn-alerta" class="btn-alerta">AVISAR AL DUEÑO</button>
+  </div>
+
+  <script>
+    let userLocation = null;
+
+    const pathSegments = window.location.pathname.split('/');
+    const petId = pathSegments[pathSegments.length - 1];
+
+    async function cargarMascota() {
+      try {
+        const response = await fetch(`/api/pets/${petId}`);
+        if (!response.ok) throw new Error('Mascota no encontrada');
+        
+        const pet = await response.json();
+
+        // Banner condicional de Mascota Perdida
+        const statusBanner = document.getElementById('status-banner');
+        if (statusBanner) {
+          if (pet.is_lost) {
+            statusBanner.innerHTML = `
+              <div style="background-color: #ffebe9; color: #c0392b; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
+                🚨 ¡ESTA MASCOTA ESTÁ PERDIDA!
+              </div>
+            `;
+          } else {
+            statusBanner.innerHTML = '';
+          }
+        }
+
+        // Datos de la mascota
+        document.getElementById('pet-name').textContent = pet.name || pet.nombre;
+        document.getElementById('pet-medical').textContent = pet.medical_info || 'Sin datos médicos registrados';
+        document.getElementById('pet-phone').textContent = pet.contact_phone;
+
+        // Acción del botón WhatsApp
+        const btnAlerta = document.getElementById('btn-alerta');
+        if (btnAlerta) {
+          btnAlerta.onclick = () => {
+            let textoMensaje = `¡Hola! Encontré a tu mascota ${pet.name || pet.nombre}.`;
+
+            if (userLocation) {
+              textoMensaje += ` Mi ubicación actual es: https://maps.google.com/?q=${userLocation.lat},${userLocation.lng}`;
+            }
+
+            const mensaje = encodeURIComponent(textoMensaje);
+            window.open(`https://wa.me/${pet.contact_phone}?text=${mensaje}`, '_blank');
+          };
+        }
+
+      } catch (error) {
+        console.error('Error al cargar la mascota:', error);
+        document.getElementById('pet-name').textContent = 'Error al cargar los datos';
+      }
+    }
+
+    // Captura de GPS
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+
+          try {
+            await fetch('/scans/location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pet_id: petId,
+                latitude: userLocation.lat,
+                longitude: userLocation.lng
+              })
+            });
+            console.log('✅ Ubicación enviada y guardada en la base de datos');
+          } catch (err) {
+            console.error('Error al enviar ubicación al servidor:', err);
+          }
+        },
+        (error) => {
+          console.warn('El usuario no permitió el acceso a la ubicación.');
+        }
+      );
+    }
+
+    cargarMascota();
+  </script>
+</body>
+</html>
