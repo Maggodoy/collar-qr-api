@@ -6,20 +6,31 @@ const db = require('../db');
 const nodemailer = require('nodemailer');
 const authMiddleware = require('../middleware/auth');
 
+// Configuración de nodemailer
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 // POST /pets - Registrar mascota
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { name, contact_phone, notification_emails, medical_info } = req.body;
-    const userId = req.user.userId; // Obtenido desde el token JWT
+    const userId = req.user.userId;
 
     if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
 
     const query = `
       INSERT INTO pets (name, contact_phone, notification_emails, medical_info, user_id)
-      VALUES ($1, $2, $3, $4)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
-    const result = await db.query(query, [name, contact_phone, notification_emails, medical_info, userId]);
+    
+    // Corregido: 5 marcadores de posición para los 5 valores
+    const result = await db.query(query, [name, contact_phone, notification_emails || null, medical_info || null, userId]);
     res.status(201).json({ message: 'Mascota creada con éxito', pet: result.rows[0] });
   } catch (error) {
     console.error('Error al crear mascota:', error);
@@ -68,7 +79,6 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Mascota no encontrada' });
     }
 
-    // Registrar el escaneo básico (sin GPS todavía)
     await db.query(
       'INSERT INTO scans (pet_id, ip_address, user_agent) VALUES ($1, $2, $3)',
       [id, ip, userAgent]
@@ -81,17 +91,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /pets/scans/location - Guardar las coordenadas GPS obtenidas desde el frontend
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER, // Tu correo
-    pass: process.env.EMAIL_PASS  // Tu contraseña de aplicación de Gmail
-  }
-});
-
-// Dentro de router.post('/scans/location', ...)
+// POST /pets/scans/location - Guardar coordenadas GPS y enviar alerta por email
 router.post('/scans/location', async (req, res) => {
   try {
     const { pet_id, latitude, longitude } = req.body;
@@ -105,15 +105,22 @@ router.post('/scans/location', async (req, res) => {
       [pet_id, ip, userAgent, latitude, longitude]
     );
 
-    // 2. Enviar notificación por email
+    // 2. Buscar datos de la mascota para obtener sus emails de notificación
+    const petQuery = await db.query('SELECT name, notification_emails FROM pets WHERE id = $1', [pet_id]);
+    const pet = petQuery.rows[0];
+
+    const destinatarios = (pet && pet.notification_emails) ? pet.notification_emails : process.env.NOTIFY_EMAIL;
+    const nombreMascota = pet ? pet.name : 'tu mascota';
+
+    // 3. Enviar notificación por email
     const mapUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
     
     transporter.sendMail({
       from: '"Alerta Mascota QR" <no-reply@collarqr.com>',
-      to: process.env.NOTIFY_EMAIL, // El mail donde querés recibir la alerta
-      subject: '🚨 ¡Escaneo detectado con ubicación GPS!',
+      to: destinatarios,
+      subject: `🚨 ¡Escaneo detectado para ${nombreMascota}!`,
       html: `
-        <h2>¡Alguien escaneó el collar!</h2>
+        <h2>¡Alguien escaneó el collar de ${nombreMascota}!</h2>
         <p>Se capturaron coordenadas GPS del dispositivo:</p>
         <p><b>Ver ubicación en Google Maps:</b> <a href="${mapUrl}">${mapUrl}</a></p>
         <p><small>IP: ${ip} | Dispositivo: ${userAgent}</small></p>
