@@ -9,17 +9,17 @@ const authMiddleware = require('../middleware/auth');
 // POST /pets - Registrar mascota
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { name, contact_phone, medical_info } = req.body;
+    const { name, contact_phone, notification_emails, medical_info } = req.body;
     const userId = req.user.userId; // Obtenido desde el token JWT
 
     if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
 
     const query = `
-      INSERT INTO pets (name, contact_phone, medical_info, user_id)
+      INSERT INTO pets (name, contact_phone, notification_emails, medical_info, user_id)
       VALUES ($1, $2, $3, $4)
       RETURNING *;
     `;
-    const result = await db.query(query, [name, contact_phone, medical_info, userId]);
+    const result = await db.query(query, [name, contact_phone, notification_emails, medical_info, userId]);
     res.status(201).json({ message: 'Mascota creada con éxito', pet: result.rows[0] });
   } catch (error) {
     console.error('Error al crear mascota:', error);
