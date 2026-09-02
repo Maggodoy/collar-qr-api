@@ -43,7 +43,11 @@ router.post('/', authMiddleware, async (req, res) => {
 router.get('/user/all', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const result = await db.query('SELECT * FROM pets WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
+    // Se usa ORDER BY id DESC en lugar de created_at para evitar errores de columna inexistente
+    const result = await db.query(
+      'SELECT id, name, contact_phone, notification_emails, medical_info, is_lost FROM pets WHERE user_id = $1 ORDER BY id DESC', 
+      [userId]
+    );
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener mascotas:', error);
