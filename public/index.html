@@ -12,6 +12,8 @@
       --text-secondary: #6e7571;
       --accent-color: #2e5a44;
       --accent-hover: #234735;
+      --danger-color: #c0392b;
+      --danger-hover: #a93226;
       --border-radius: 16px;
       --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     }
@@ -58,7 +60,7 @@
       background-color: #f9f9f8;
       border-radius: 12px;
       padding: 16px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       text-align: left;
     }
 
@@ -89,13 +91,32 @@
       cursor: pointer;
       transition: background-color 0.2s ease, transform 0.1s ease;
       box-shadow: 0 4px 12px rgba(46, 90, 68, 0.2);
+      margin-bottom: 12px;
     }
 
     .btn-alerta:hover {
       background-color: var(--accent-hover);
     }
 
-    .btn-alerta:active {
+    .btn-reportar {
+      background-color: transparent;
+      color: var(--danger-color);
+      border: 2px solid var(--danger-color);
+      width: 100%;
+      padding: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-reportar:hover {
+      background-color: var(--danger-color);
+      color: #ffffff;
+    }
+
+    .btn-alerta:active, .btn-reportar:active {
       transform: scale(0.98);
     }
   </style>
@@ -123,37 +144,28 @@
     </div>
 
     <button id="btn-alerta" class="btn-alerta">AVISAR AL DUEÑO</button>
+    <button id="btn-toggle-lost" class="btn-reportar">🚨 REPORTAR COMO PERDIDA</button>
   </div>
 
   <script>
   let userLocation = null;
+  let isCurrentlyLost = false;
 
-  // Extraer el ID de la mascota asegurando ignorar barras al final (ej: /pets/5/)
-  const pathSegments = window.location.pathname.split('/').filter(Boolean);
+  const cleanPath = window.location.pathname.replace(/\/+$/, '');
+  const pathSegments = cleanPath.split('/').filter(Boolean);
   const petId = pathSegments[pathSegments.length - 1];
 
   async function cargarMascota() {
     try {
-      if (!petId) throw new Error('ID de mascota no válido');
+      if (!petId || petId === 'pets') throw new Error('ID de mascota no válido');
 
       const response = await fetch(`/pets/api/${petId}`);
       if (!response.ok) throw new Error('Mascota no encontrada');
       
       const pet = await response.json();
+      isCurrentlyLost = pet.is_lost || false;
 
-      // Banner condicional de Mascota Perdida
-      const statusBanner = document.getElementById('status-banner');
-      if (statusBanner) {
-        if (pet.is_lost) {
-          statusBanner.innerHTML = `
-            <div style="background-color: #ffebe9; color: #c0392b; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
-              🚨 ¡ESTA MASCOTA ESTÁ PERDIDA!
-            </div>
-          `;
-        } else {
-          statusBanner.innerHTML = '';
-        }
-      }
+      actualizarUIBanner(isCurrentlyLost);
 
       // Renderizar datos de la mascota
       document.getElementById('pet-name').textContent = pet.name || pet.nombre || 'Sin nombre';
@@ -164,9 +176,7 @@
       const btnAlerta = document.getElementById('btn-alerta');
       if (btnAlerta && pet.contact_phone) {
         btnAlerta.onclick = () => {
-          // Limpiar el teléfono quitando caracteres no numéricos
           const cleanPhone = pet.contact_phone.replace(/\D/g, '');
-          
           let textoMensaje = `¡Hola! Encontré a tu mascota ${pet.name || pet.nombre}.`;
 
           if (userLocation) {
@@ -180,6 +190,39 @@
         };
       }
 
+      // Configurar acción del botón "REPORTAR COMO PERDIDA"
+      const btnToggleLost = document.getElementById('btn-toggle-lost');
+      if (btnToggleLost) {
+        btnToggleLost.onclick = async () => {
+          const nuevoEstado = !isCurrentlyLost;
+          const confirmacion = confirm(nuevoEstado 
+            ? '¿Estás seguro de que querés marcar esta mascota como PERDIDA?' 
+            : '¿Querés marcar esta mascota como ENCONTRADA / A SALVO?'
+          );
+
+          if (!confirmacion) return;
+
+          try {
+            const res = await fetch(`/pets/${petId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ is_lost: nuevoEstado })
+            });
+
+            if (res.ok) {
+              isCurrentlyLost = nuevoEstado;
+              actualizarUIBanner(isCurrentlyLost);
+              alert(isCurrentlyLost ? 'Mascota reportada como perdida' : 'Estado de mascota actualizado');
+            } else {
+              alert('No se pudo actualizar el estado de la mascota.');
+            }
+          } catch (err) {
+            console.error('Error al cambiar estado:', err);
+            alert('Error de conexión al intentar cambiar el estado.');
+          }
+        };
+      }
+
     } catch (error) {
       console.error('Error al cargar la mascota:', error);
       const nameElem = document.getElementById('pet-name');
@@ -187,8 +230,29 @@
     }
   }
 
-  // Captura automática de GPS al cargar la página
-  if ('geolocation' in navigator && petId) {
+  function actualizarUIBanner(isLost) {
+    const statusBanner = document.getElementById('status-banner');
+    const btnToggleLost = document.getElementById('btn-toggle-lost');
+
+    if (statusBanner) {
+      if (isLost) {
+        statusBanner.innerHTML = `
+          <div style="background-color: #ffebe9; color: #c0392b; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
+            🚨 ¡ESTA MASCOTA ESTÁ PERDIDA!
+          </div>
+        `;
+      } else {
+        statusBanner.innerHTML = '';
+      }
+    }
+
+    if (btnToggleLost) {
+      btnToggleLost.textContent = isLost ? '✅ MARCAR COMO ENCONTRADA' : '🚨 REPORTAR COMO PERDIDA';
+    }
+  }
+
+  // Captura automática de GPS
+  if ('geolocation' in navigator && petId && petId !== 'pets') {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         userLocation = {
@@ -196,7 +260,6 @@
           lng: position.coords.longitude
         };
 
-        // Enviar ubicación al servidor para registrar la alerta/escaneo silencioso
         try {
           await fetch('/pets/scans/location', {
             method: 'POST',
@@ -207,19 +270,16 @@
               longitude: userLocation.lng
             })
           });
-          console.log('✅ Ubicación enviada y guardada en la base de datos');
         } catch (err) {
           console.error('Error al enviar ubicación al servidor:', err);
         }
       },
-      (error) => {
-        console.warn('El usuario rechazó o no permitió el acceso a la ubicación.');
-      },
+      (error) => console.warn('Acceso a ubicación no permitido.'),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
 
   cargarMascota();
-</script>
+  </script>
 </body>
 </html>
