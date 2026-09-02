@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Panel de Mascotas</title>
+  <style>
+    :root {
+      --bg-color: #f7f5f0;
+      --card-bg: #ffffff;
+      --text-primary: #2c302e;
+      --accent-color: #2e5a44;
+      --danger-color: #c0392b;
+      --border-radius: 12px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      margin: 0;
+      padding: 20px;
+    }
+    .container { max-width: 600px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .card { background: white; padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .pet-item { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; }
+    .pet-item:last-child { border-bottom: none; }
+    input, textarea { width: 100%; padding: 8px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    button { background: var(--accent-color); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn-secondary { background: #6e7571; }
+    .btn-qr { background: #27ae60; font-size: 0.85rem; padding: 6px 10px; text-decoration: none; color: white; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h2>Mis Mascotas</h2>
+      <button class="btn-secondary" onclick="logout()">Cerrar Sesión</button>
+    </div>
+
+    <!-- Formulario para agregar/editar mascota -->
+    <div class="card">
+      <h3>Registrar Nueva Mascota</h3>
+      <form id="pet-form">
+        <label>Nombre</label>
+        <input type="text" id="pet-name" required placeholder="Ej: Yuki">
+        
+        <label>Teléfono de Contacto</label>
+        <input type="text" id="pet-phone" required placeholder="Ej: +5493417188868">
+        
+        <label>Información Médica / Observaciones</label>
+        <textarea id="pet-medical" rows="3" placeholder="Alergias, medicación, dieta..."></textarea>
+        
+        <button type="submit">Guardar Mascota</button>
+      </form>
+    </div>
+
+    <!-- Lista de mascotas -->
+    <div class="card">
+      <h3>Mascotas Registradas</h3>
+      <div id="pets-list">Cargando...</div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login.html';
+    }
+
+    async function cargarMascotas() {
+      try {
+        const response = await fetch('/pets/user/all', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const pets = await response.json();
+        
+        const listContainer = document.getElementById('pets-list');
+        if (pets.length === 0) {
+          listContainer.innerHTML = '<p>No tenés mascotas registradas todavía.</p>';
+          return;
+        }
+
+        listContainer.innerHTML = pets.map(pet => `
+          <div class="pet-item">
+            <div>
+              <strong>${pet.name}</strong> ${pet.is_lost ? '🚨 <span style="color:red">(PERDIDA)</span>' : ''}<br>
+              <small>📞 ${pet.contact_phone}</small>
+            </div>
+            <div>
+              <a href="/pets/${pet.id}/qr" target="_blank" class="btn-qr">Ver QR</a>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error al cargar mascotas:', err);
+      }
+    }
+
+    document.getElementById('pet-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('pet-name').value;
+      const contact_phone = document.getElementById('pet-phone').value;
+      const medical_info = document.getElementById('pet-medical').value;
+
+      try {
+        const response = await fetch('/pets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, contact_phone, medical_info })
+        });
+
+        if (!response.ok) throw new Error('Error al registrar mascota');
+
+        document.getElementById('pet-form').reset();
+        cargarMascotas();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    cargarMascotas();
+  </script>
+</body>
+</html>
