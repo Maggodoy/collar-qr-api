@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// POST /pets - Registrar mascota
+// POST /pets - Registrar mascota (Solo para usuario dueño autenticado)
 router.post('/', authMiddleware, async (req, res) => {
   try {
     const { name, contact_phone, notification_emails, medical_info } = req.body;
@@ -28,10 +28,8 @@ router.post('/', authMiddleware, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
-    await db.query(query, [name, contact_phone, notification_emails || null, medical_info || null, userId]);
-    
-    // Corregido: 5 marcadores de posición para los 5 valores
     const result = await db.query(query, [name, contact_phone, notification_emails || null, medical_info || null, userId]);
+    
     res.status(201).json({ message: 'Mascota creada con éxito', pet: result.rows[0] });
   } catch (error) {
     console.error('Error al crear mascota:', error);
@@ -43,7 +41,6 @@ router.post('/', authMiddleware, async (req, res) => {
 router.get('/user/all', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.userId;
-    // Se usa ORDER BY id DESC en lugar de created_at para evitar errores de columna inexistente
     const result = await db.query(
       'SELECT id, name, contact_phone, notification_emails, medical_info, is_lost FROM pets WHERE user_id = $1 ORDER BY id DESC', 
       [userId]
@@ -51,6 +48,36 @@ router.get('/user/all', authMiddleware, async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error al obtener mascotas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PATCH /pets/:id/status - Cambiar estado (Perdida/Encontrada) (Protegido para el dueño)
+router.patch('/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_lost } = req.body;
+    const userId = req.user.userId;
+
+    if (typeof is_lost !== 'boolean') {
+      return res.status(400).json({ error: 'El parámetro is_lost debe ser un valor booleano' });
+    }
+
+    const query = `
+      UPDATE pets 
+      SET is_lost = $1 
+      WHERE id = $2 AND user_id = $3 
+      RETURNING id, name, is_lost;
+    `;
+    const result = await db.query(query, [is_lost, id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Mascota no encontrada o no autorizada' });
+    }
+
+    res.json({ message: 'Estado de la mascota actualizado con éxito', pet: result.rows[0] });
+  } catch (error) {
+    console.error('Error al cambiar estado de la mascota:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -100,7 +127,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /pets/api/:id - Devuelve los datos de la mascota en JSON para el frontend
+// GET /pets/api/:id - Devuelve los datos de la mascota en JSON para la vista pública
 router.get('/api/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -184,7 +211,7 @@ router.post('/scans/location', async (req, res) => {
   }
 });
 
-// GET /pets/:id/qr - Generar imagen del QR
+// GET /pets/:id/qr - Generar imagen del QR apuntando a la vista pública HTML
 router.get('/:id/qr', async (req, res) => {
   try {
     const { id } = req.params;
@@ -201,6 +228,7 @@ router.get('/:id/qr', async (req, res) => {
     res.setHeader('Content-Type', 'image/png');
     res.send(qrBuffer);
   } catch (error) {
+    console.error('Error al generar QR:', error);
     res.status(500).json({ error: 'Error al generar el código QR' });
   }
 });

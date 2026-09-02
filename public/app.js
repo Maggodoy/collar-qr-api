@@ -28,26 +28,22 @@ const petId = getPetIdFromURL();
 
 async function cargarMascota() {
   try {
-    if (!petId) {
-      throw new Error('No se especificó un ID de mascota en la URL.');
-    }
+    if (!petId) throw new Error('No se especificó un ID de mascota en la URL.');
 
     const response = await fetch(`/pets/api/${petId}`);
-    if (!response.ok) {
-      throw new Error(`Error en la respuesta del servidor (${response.status})`);
-    }
+    if (!response.ok) throw new Error(`Error en el servidor (${response.status})`);
 
     const pet = await response.json();
-    isCurrentlyLost = pet.is_lost || false;
 
-    actualizarUIBanner(isCurrentlyLost);
+    // Mostrar banner solo si el dueño la marcó como perdida previamente
+    actualizarUIBanner(pet.is_lost || false);
 
-    // Actualizar interfaz con los datos recibidos
+    // Renderizar datos de Yuki
     document.getElementById('pet-name').textContent = pet.name || pet.nombre || 'Sin nombre';
     document.getElementById('pet-medical').textContent = pet.medical_info || 'Sin datos médicos registrados';
     document.getElementById('pet-phone').textContent = pet.contact_phone || 'No disponible';
 
-    // Acción del botón WhatsApp
+    // Configurar acción del botón de WhatsApp
     const btnAlerta = document.getElementById('btn-alerta');
     if (btnAlerta && pet.contact_phone) {
       btnAlerta.onclick = () => {
@@ -65,70 +61,21 @@ async function cargarMascota() {
       };
     }
 
-    // Acción del botón Cambiar Estado (Perdida / Encontrada)
-    const btnToggleLost = document.getElementById('btn-toggle-lost');
-    if (btnToggleLost) {
-      btnToggleLost.onclick = async () => {
-        const nuevoEstado = !isCurrentlyLost;
-        const confirmacion = confirm(nuevoEstado
-          ? '¿Estás seguro de que querés marcar esta mascota como PERDIDA?'
-          : '¿Querés marcar esta mascota como ENCONTRADA / A SALVO?'
-        );
-
-        if (!confirmacion) return;
-
-        try {
-          const res = await fetch(`/pets/${petId}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_lost: nuevoEstado })
-          });
-
-          if (res.ok) {
-            isCurrentlyLost = nuevoEstado;
-            actualizarUIBanner(isCurrentlyLost);
-            alert(isCurrentlyLost ? 'Mascota reportada como perdida' : 'Estado de mascota actualizado');
-          } else {
-            alert('No se pudo actualizar el estado de la mascota.');
-          }
-        } catch (err) {
-          console.error('Error al cambiar estado:', err);
-          alert('Error de conexión al intentar cambiar el estado.');
-        }
-      };
-    }
-
   } catch (error) {
     console.error('Error al cargar la mascota:', error);
     const nameElem = document.getElementById('pet-name');
-    if (nameElem) {
-      if (!petId) {
-        nameElem.textContent = 'Mascota no especificada';
-      } else {
-        nameElem.textContent = 'Error al cargar los datos';
-      }
-    }
+    if (nameElem) nameElem.textContent = petId ? 'Error al cargar los datos' : 'Mascota no especificada';
   }
 }
 
 function actualizarUIBanner(isLost) {
   const statusBanner = document.getElementById('status-banner');
-  const btnToggleLost = document.getElementById('btn-toggle-lost');
-
   if (statusBanner) {
-    if (isLost) {
-      statusBanner.innerHTML = `
-        <div style="background-color: #ffebe9; color: #c0392b; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
-          🚨 ¡ESTA MASCOTA ESTÁ PERDIDA!
-        </div>
-      `;
-    } else {
-      statusBanner.innerHTML = '';
-    }
-  }
-
-  if (btnToggleLost) {
-    btnToggleLost.textContent = isLost ? '✅ MARCAR COMO ENCONTRADA' : '🚨 REPORTAR COMO PERDIDA';
+    statusBanner.innerHTML = isLost ? `
+      <div style="background-color: #ffebe9; color: #c0392b; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; text-align: center;">
+        🚨 ¡ESTA MASCOTA ESTÁ PERDIDA!
+      </div>
+    ` : '';
   }
 }
 
