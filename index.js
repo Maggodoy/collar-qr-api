@@ -1,25 +1,31 @@
 const express = require('express');
 const cors = require('cors');
-const petRoutes = require('./routes/pets'); // 1. Importás el archivo
+const path = require('path');
+
+// Importar rutas
+const petRoutes = require('./routes/pets');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const authRoutes = require('./routes/auth');
 
-// Middlewares
+// 1. Middlewares globales
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
-// Definición de Rutas
-app.use('/pets', petRoutes); // 2. Montás el enrutador en la raíz /pets
+// 2. Servir archivos estáticos de la carpeta public (login.html, dashboard.html, etc.)
+app.use(express.static(path.join(__dirname, 'public')));
 
+// 3. Montar rutas de la API
+app.use('/pets', petRoutes);
+app.use('/auth', authRoutes);
+
+// 4. Redireccionar la raíz / al login
 app.get('/', (req, res) => {
-  res.send('Servidor del Collar QR/NFC corriendo correctamente 🐶');
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// 5. Iniciar servidor (siempre al final)
 app.listen(PORT, () => {
   console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
 });
-
-app.use('/auth', authRoutes);
