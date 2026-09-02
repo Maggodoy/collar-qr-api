@@ -128,13 +128,14 @@
   <script>
   let userLocation = null;
 
-  // Extraer el ID de la mascota desde la URL
-  const pathSegments = window.location.pathname.split('/');
+  // Extraer el ID de la mascota asegurando ignorar barras al final (ej: /pets/5/)
+  const pathSegments = window.location.pathname.split('/').filter(Boolean);
   const petId = pathSegments[pathSegments.length - 1];
 
   async function cargarMascota() {
     try {
-      
+      if (!petId) throw new Error('ID de mascota no válido');
+
       const response = await fetch(`/pets/api/${petId}`);
       if (!response.ok) throw new Error('Mascota no encontrada');
       
@@ -155,7 +156,7 @@
       }
 
       // Renderizar datos de la mascota
-      document.getElementById('pet-name').textContent = pet.name || pet.nombre;
+      document.getElementById('pet-name').textContent = pet.name || pet.nombre || 'Sin nombre';
       document.getElementById('pet-medical').textContent = pet.medical_info || 'Sin datos médicos registrados';
       document.getElementById('pet-phone').textContent = pet.contact_phone || 'No disponible';
 
@@ -163,7 +164,7 @@
       const btnAlerta = document.getElementById('btn-alerta');
       if (btnAlerta && pet.contact_phone) {
         btnAlerta.onclick = () => {
-          // Limpiar el teléfono quitando espacios, signos + y guiones para la API de WhatsApp
+          // Limpiar el teléfono quitando caracteres no numéricos
           const cleanPhone = pet.contact_phone.replace(/\D/g, '');
           
           let textoMensaje = `¡Hola! Encontré a tu mascota ${pet.name || pet.nombre}.`;
@@ -181,12 +182,13 @@
 
     } catch (error) {
       console.error('Error al cargar la mascota:', error);
-      document.getElementById('pet-name').textContent = 'Error al cargar los datos';
+      const nameElem = document.getElementById('pet-name');
+      if (nameElem) nameElem.textContent = 'Error al cargar los datos';
     }
   }
 
   // Captura automática de GPS al cargar la página
-  if ('geolocation' in navigator) {
+  if ('geolocation' in navigator && petId) {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         userLocation = {
@@ -200,9 +202,9 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-            pet_id: petId,
-            latitude: userLocation.lat,
-            longitude: userLocation.lng
+              pet_id: petId,
+              latitude: userLocation.lat,
+              longitude: userLocation.lng
             })
           });
           console.log('✅ Ubicación enviada y guardada en la base de datos');
