@@ -215,7 +215,12 @@ router.post('/scans/location', async (req, res) => {
 router.get('/:id/qr', async (req, res) => {
   try {
     const { id } = req.params;
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+
+    // Detecta el protocolo HTTPS y el dominio real a través del proxy de Render
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const protocol = req.headers['x-forwarded-proto'] || 'https';
+    const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
+    
     const urlEscaneo = `${baseUrl}/pets/${id}`;
 
     const qrBuffer = await qrcode.toBuffer(urlEscaneo, {
