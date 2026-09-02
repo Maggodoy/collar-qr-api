@@ -25,9 +25,12 @@
     .card { background: white; padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
     .pet-item { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; }
     .pet-item:last-child { border-bottom: none; }
+    .actions { display: flex; gap: 6px; align-items: center; }
     input, textarea { width: 100%; padding: 8px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
     button { background: var(--accent-color); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; }
     .btn-secondary { background: #6e7571; }
+    .btn-edit { background: #d35400; font-size: 0.85rem; padding: 6px 10px; color: white; border-radius: 4px; border: none; cursor: pointer; }
+    .btn-delete { background: var(--danger-color); font-size: 0.85rem; padding: 6px 10px; color: white; border-radius: 4px; border: none; cursor: pointer; }
     .btn-qr { background: #27ae60; font-size: 0.85rem; padding: 6px 10px; text-decoration: none; color: white; border-radius: 4px; }
   </style>
 </head>
@@ -39,10 +42,12 @@
       <button class="btn-secondary" onclick="logout()">Cerrar Sesión</button>
     </div>
 
-    <!-- Formulario para agregar mascota -->
+    <!-- Formulario para agregar / editar -->
     <div class="card">
-      <h3>Registrar Nueva Mascota</h3>
+      <h3 id="form-title">Registrar Nueva Mascota</h3>
       <form id="pet-form">
+        <input type="hidden" id="pet-id">
+        
         <label>Nombre</label>
         <input type="text" id="pet-name" required placeholder="Ej: Meddows">
         
@@ -55,7 +60,8 @@
         <label>Mails para Alertas (separados por coma)</label>
         <input type="text" id="pet-emails" placeholder="ejemplo1@gmail.com, ejemplo2@gmail.com">
 
-        <button type="submit">Guardar Mascota</button>
+        <button type="submit" id="btn-save">Guardar Mascota</button>
+        <button type="button" id="btn-cancel" class="btn-secondary" style="display:none;" onclick="resetForm()">Cancelar</button>
       </form>
     </div>
 
@@ -69,6 +75,7 @@
   <script>
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '/login.html';
+    let mascotasGuardadas = [];
 
     function logout() {
       localStorage.removeItem('token');
@@ -84,66 +91,102 @@
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        if (!response.ok) {
-          throw new Error('Error al conectar con el servidor.');
-        }
+        if (!response.ok) throw new Error('Error al conectar con el servidor.');
 
-        const pets = await response.json();
+        mascotasGuardadas = await response.json();
 
-        // Validar que realmente sea un Array antes de iterar
-        if (!Array.isArray(pets)) {
-          throw new Error('Respuesta del servidor inválida.');
-        }
+        if (!Array.isArray(mascotasGuardadas)) throw new Error('Respuesta del servidor inválida.');
 
-        if (pets.length === 0) {
+        if (mascotasGuardadas.length === 0) {
           listContainer.innerHTML = '<p>No tenés mascotas registradas todavía.</p>';
           return;
         }
 
-        listContainer.innerHTML = pets.map(pet => `
+        listContainer.innerHTML = mascotasGuardadas.map(pet => `
           <div class="pet-item">
             <div>
               <strong>${pet.name}</strong> ${pet.is_lost ? '🚨 <span style="color:red">(PERDIDA)</span>' : ''}<br>
               <small>📞 ${pet.contact_phone}</small><br>
               <small>✉️ ${pet.notification_emails || 'Sin mails asignados'}</small>
             </div>
-            <div>
+            <div class="actions">
               <a href="/pets/${pet.id}/qr" target="_blank" class="btn-qr">Ver QR</a>
+              <button class="btn-edit" onclick="prepararEdicion(${pet.id})">Editar</button>
+              <button class="btn-delete" onclick="eliminarMascota(${pet.id})">Borrar</button>
             </div>
           </div>
         `).join('');
 
       } catch (err) {
         console.error('Error al cargar mascotas:', err);
-        listContainer.innerHTML = '<p style="color: red;">No se pudieron cargar las mascotas. Revisa el servidor.</p>';
+        listContainer.innerHTML = '<p style="color: red;">No se pudieron cargar las mascotas.</p>';
+      }
+    }
+
+    function prepararEdicion(id) {
+      const pet = mascotasGuardadas.find(p => p.id === id);
+      if (!pet) return;
+
+      document.getElementById('pet-id').value = pet.id;
+      document.getElementById('pet-name').value = pet.name;
+      document.getElementById('pet-phone').value = pet.contact_phone;
+      document.getElementById('pet-medical').value = pet.medical_info || '';
+      document.getElementById('pet-emails').value = pet.notification_emails || '';
+
+      document.getElementById('form-title').innerText = 'Modificar Mascota';
+      document.getElementById('btn-save').innerText = 'Actualizar Mascota';
+      document.getElementById('btn-cancel').style.display = 'inline-block';
+    }
+
+    function resetForm() {
+      document.getElementById('pet-form').reset();
+      document.getElementById('pet-id').value = '';
+      document.getElementById('form-title').innerText = 'Registrar Nueva Mascota';
+      document.getElementById('btn-save').innerText = 'Guardar Mascota';
+      document.getElementById('btn-cancel').style.display = 'none';
+    }
+
+    async function eliminarMascota(id) {
+      if (!confirm('¿Estás segura de que querés eliminar esta mascota?')) return;
+
+      try {
+        const response = await fetch(`/pets/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) throw new Error('Error al eliminar la mascota');
+
+        cargarMascotas();
+      } catch (err) {
+        alert(err.message);
       }
     }
 
     document.getElementById('pet-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const id = document.getElementById('pet-id').value;
       const name = document.getElementById('pet-name').value;
       const contact_phone = document.getElementById('pet-phone').value;
       const notification_emails = document.getElementById('pet-emails').value;
       const medical_info = document.getElementById('pet-medical').value;
 
+      const url = id ? `/pets/${id}` : '/pets';
+      const method = id ? 'PUT' : 'POST';
+
       try {
-        const response = await fetch('/pets', {
-          method: 'POST',
+        const response = await fetch(url, {
+          method,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({ 
-            name, 
-            contact_phone, 
-            notification_emails, 
-            medical_info 
-          })
+          body: JSON.stringify({ name, contact_phone, notification_emails, medical_info })
         });
 
-        if (!response.ok) throw new Error('Error al registrar mascota');
+        if (!response.ok) throw new Error('Error al guardar cambios');
 
-        document.getElementById('pet-form').reset();
+        resetForm();
         cargarMascotas();
       } catch (err) {
         alert(err.message);

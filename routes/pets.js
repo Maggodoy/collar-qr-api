@@ -55,6 +55,51 @@ router.get('/user/all', authMiddleware, async (req, res) => {
   }
 });
 
+// PUT /pets/:id - Actualizar datos de una mascota
+router.put('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, contact_phone, notification_emails, medical_info } = req.body;
+    const userId = req.user.userId;
+
+    const query = `
+      UPDATE pets 
+      SET name = $1, contact_phone = $2, notification_emails = $3, medical_info = $4
+      WHERE id = $5 AND user_id = $6
+      RETURNING *;
+    `;
+    const result = await db.query(query, [name, contact_phone, notification_emails || null, medical_info || null, id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Mascota no encontrada o no autorizada' });
+    }
+
+    res.json({ message: 'Mascota actualizada correctamente', pet: result.rows[0] });
+  } catch (error) {
+    console.error('Error al actualizar mascota:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// DELETE /pets/:id - Eliminar una mascota
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const result = await db.query('DELETE FROM pets WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Mascota no encontrada o no autorizada' });
+    }
+
+    res.json({ message: 'Mascota eliminada con éxito' });
+  } catch (error) {
+    console.error('Error al eliminar mascota:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // GET /pets/api/:id - Devuelve los datos de la mascota en JSON para el frontend
 router.get('/api/:id', async (req, res) => {
   try {
