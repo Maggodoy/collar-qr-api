@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 2. Servir archivos estáticos de la carpeta public (login.html, dashboard.html, etc.)
+// 2. Servir archivos estáticos de la carpeta public (login.html, dashboard.html, app.js, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 3. Montar rutas de la API
@@ -22,10 +22,10 @@ app.use('/auth', authRoutes);
 
 // 4. Redireccionar la raíz / al login
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  res.redirect('/login.html');
 });
 
-// 5. Iniciar servidor (siempre al final)
+// 5. Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🚀 Servidor escuchando en puerto ${PORT}`);
 });
