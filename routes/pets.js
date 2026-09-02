@@ -189,11 +189,18 @@ router.post('/scans/location', async (req, res) => {
     const destinatarios = (pet && pet.notification_emails) ? pet.notification_emails : process.env.NOTIFY_EMAIL;
     const nombreMascota = pet ? pet.name : 'tu mascota';
 
+    // Verificación de destinatario antes de intentar enviar
+    if (!destinatarios) {
+      console.warn('⚠️ No se definió destinatario de email ni en la mascota ni en process.env.NOTIFY_EMAIL');
+      return res.status(200).json({ message: 'Ubicación registrada, pero no se especificó e-mail de destino' });
+    }
+
     // 3. Enviar notificación por email
     const mapUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
     
-    transporter.sendMail({
-      from: '"Alerta Mascota QR" <no-reply@collarqr.com>',
+    // IMPORTANTE: El remitente (from) debe ser el mismo que process.env.EMAIL_USER cuando usás Gmail
+    const mailInfo = await transporter.sendMail({
+      from: `"Alerta Mascota QR" <${process.env.EMAIL_USER}>`,
       to: destinatarios,
       subject: `🚨 ¡Escaneo detectado para ${nombreMascota}!`,
       html: `
@@ -202,12 +209,14 @@ router.post('/scans/location', async (req, res) => {
         <p><b>Ver ubicación en Google Maps:</b> <a href="${mapUrl}">${mapUrl}</a></p>
         <p><small>IP: ${ip} | Dispositivo: ${userAgent}</small></p>
       `
-    }).catch(err => console.error('Error enviando email:', err));
+    });
+
+    console.log('✅ Email enviado con éxito:', mailInfo.messageId);
 
     res.status(200).json({ message: 'Ubicación registrada y notificación enviada' });
   } catch (error) {
-    console.error('Error al guardar ubicación GPS:', error);
-    res.status(500).json({ error: 'Error interno al guardar ubicación' });
+    console.error('Error en el proceso de ubicación o envío de email:', error);
+    res.status(500).json({ error: 'Error interno al procesar el escaneo' });
   }
 });
 
