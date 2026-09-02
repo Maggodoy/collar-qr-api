@@ -144,38 +144,75 @@ router.get('/api/:id', async (req, res) => {
   }
 });
 
-// GET /pets/:id - Escaneo inicial de QR / NFC (Sirve la vista HTML y registra la IP)
+// GET /pets/:id - Escaneo inicial de QR / NFC (Sirve la vista HTML, registra el escaneo y notifica por IP)
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const ip = req.ip || req.headers['x-forwarded-for'];
-    const userAgent = req.headers['user-agent'];
+    
+    // Obtener IP real detrás de Render o proxies
+    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const ip = rawIp.split(',')[0].trim();
+    const userAgent = req.headers['user-agent'] || 'Desconocido';
 
-    const petResult = await db.query('SELECT * FROM pets WHERE id = $1', [id]);
+    // 1. Verificar si la mascota existe
+    const petResult = await db.query('SELECT name, notification_emails FROM pets WHERE id = $1', [id]);
     if (petResult.rows.length === 0) {
       return res.status(404).json({ error: 'Mascota no encontrada' });
     }
 
+    const pet = petResult.rows[0];
+
+    // 2. Registrar el escaneo inicial en la base de datos
     await db.query(
       'INSERT INTO scans (pet_id, ip_address, user_agent) VALUES ($1, $2, $3)',
       [id, ip, userAgent]
     );
 
+    // 3. Enviar email de alerta básica inmediata (sin esperar GPS)
+    const destinatarios = (pet && pet.notification_emails) ? pet.notification_emails : process.env.NOTIFY_EMAIL;
+
+    if (destinatarios) {
+      transporter.sendMail({
+        from: `"Alerta Mascota QR" <${process.env.EMAIL_USER}>`,
+        to: destinatarios,
+        subject: `🚨 ¡Escanearon el collar de ${pet.name}!`,
+        html: `
+          <h2>¡Alguien acaba de escanear el código QR de ${pet.name}!</h2>
+          <p>Se ha detectado una lectura del collar sin necesidad de confirmación de GPS.</p>
+          <hr>
+          <h3>Datos capturados del dispositivo:</h3>
+          <ul>
+            <li><b>Dirección IP:</b> ${ip}</li>
+            <li><b>Dispositivo / Navegador:</b> ${userAgent}</li>
+            <li><b>Fecha y Hora:</b> ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}</li>
+          </ul>
+          <p><i>Si el usuario acepta compartir su ubicación GPS precisa, recibirás un correo adicional con el mapa exacto de Google Maps.</i></p>
+        `
+      }).then(() => {
+        console.log(`✅ Email de alerta inicial enviado para ${pet.name}`);
+      }).catch(err => {
+        console.error('Error enviando email inicial de escaneo:', err);
+      });
+    }
+
+    // 4. Servir la página pública
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
+
   } catch (error) {
-    console.error('Error al procesar la vista HTML:', error);
+    console.error('Error al procesar el escaneo inicial:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// POST /pets/scans/location - Guardar coordenadas GPS y enviar alerta por email
+// POST /pets/scans/location - Guardar coordenadas GPS y enviar alerta extendida por email
 router.post('/scans/location', async (req, res) => {
   try {
     const { pet_id, latitude, longitude } = req.body;
-    const ip = req.ip || req.headers['x-forwarded-for'];
-    const userAgent = req.headers['user-agent'];
+    const rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const ip = rawIp.split(',')[0].trim();
+    const userAgent = req.headers['user-agent'] || 'Desconocido';
 
-    // 1. Guardar en PostgreSQL
+    // 1. Guardar coordenadas GPS en PostgreSQL
     await db.query(
       `INSERT INTO scans (pet_id, ip_address, user_agent, latitude, longitude) 
        VALUES ($1, $2, $3, $4, $5)`,
@@ -195,23 +232,23 @@ router.post('/scans/location', async (req, res) => {
       return res.status(200).json({ message: 'Ubicación registrada, pero no se especificó e-mail de destino' });
     }
 
-    // 3. Enviar notificación por email
+    // 3. Enviar notificación con ubicación exacta por email
     const mapUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
     
-    // IMPORTANTE: El remitente (from) debe ser el mismo que process.env.EMAIL_USER cuando usás Gmail
     const mailInfo = await transporter.sendMail({
       from: `"Alerta Mascota QR" <${process.env.EMAIL_USER}>`,
       to: destinatarios,
-      subject: `🚨 ¡Escaneo detectado para ${nombreMascota}!`,
+      subject: `📍 Ubicación GPS confirmada para ${nombreMascota}`,
       html: `
-        <h2>¡Alguien escaneó el collar de ${nombreMascota}!</h2>
-        <p>Se capturaron coordenadas GPS del dispositivo:</p>
-        <p><b>Ver ubicación en Google Maps:</b> <a href="${mapUrl}">${mapUrl}</a></p>
+        <h2>¡Ubicación GPS recibida para ${nombreMascota}!</h2>
+        <p>El usuario aceptó compartir su geolocalización exacta desde el navegador:</p>
+        <p><b>Ver ubicación en Google Maps:</b> <a href="${mapUrl}" target="_blank">${mapUrl}</a></p>
+        <hr>
         <p><small>IP: ${ip} | Dispositivo: ${userAgent}</small></p>
       `
     });
 
-    console.log('✅ Email enviado con éxito:', mailInfo.messageId);
+    console.log('✅ Email con GPS enviado con éxito:', mailInfo.messageId);
 
     res.status(200).json({ message: 'Ubicación registrada y notificación enviada' });
   } catch (error) {
