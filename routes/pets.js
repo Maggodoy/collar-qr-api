@@ -28,6 +28,7 @@ router.post('/', authMiddleware, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
+    await db.query(query, [name, contact_phone, notification_emails || null, medical_info || null, userId]);
     
     // Corregido: 5 marcadores de posición para los 5 valores
     const result = await db.query(query, [name, contact_phone, notification_emails || null, medical_info || null, userId]);

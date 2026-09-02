@@ -39,7 +39,7 @@
       <button class="btn-secondary" onclick="logout()">Cerrar Sesión</button>
     </div>
 
-    <!-- Formulario para agregar/editar mascota -->
+    <!-- Formulario para agregar mascota -->
     <div class="card">
       <h3>Registrar Nueva Mascota</h3>
       <form id="pet-form">
@@ -51,6 +51,7 @@
         
         <label>Información Médica / Observaciones</label>
         <textarea id="pet-medical" rows="3" placeholder="Alergias, medicación, dieta..."></textarea>
+        
         <label>Mails para Alertas (separados por coma)</label>
         <input type="text" id="pet-emails" placeholder="ejemplo1@gmail.com, ejemplo2@gmail.com">
 
@@ -66,77 +67,90 @@
   </div>
 
   <script>
-   const token = localStorage.getItem('token');
-   if (!token) window.location.href = '/login.html';
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/login.html';
 
-   function logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login.html';
-   }
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login.html';
+    }
 
     async function cargarMascotas() {
-     try {
-       const response = await fetch('/pets/user/all', {
-         headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const pets = await response.json();
-      
       const listContainer = document.getElementById('pets-list');
-      if (pets.length === 0) {
-        listContainer.innerHTML = '<p>No tenés mascotas registradas todavía.</p>';
-        return;
+
+      try {
+        const response = await fetch('/pets/user/all', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al conectar con el servidor.');
+        }
+
+        const pets = await response.json();
+
+        // Validar que realmente sea un Array antes de iterar
+        if (!Array.isArray(pets)) {
+          throw new Error('Respuesta del servidor inválida.');
+        }
+
+        if (pets.length === 0) {
+          listContainer.innerHTML = '<p>No tenés mascotas registradas todavía.</p>';
+          return;
+        }
+
+        listContainer.innerHTML = pets.map(pet => `
+          <div class="pet-item">
+            <div>
+              <strong>${pet.name}</strong> ${pet.is_lost ? '🚨 <span style="color:red">(PERDIDA)</span>' : ''}<br>
+              <small>📞 ${pet.contact_phone}</small><br>
+              <small>✉️ ${pet.notification_emails || 'Sin mails asignados'}</small>
+            </div>
+            <div>
+              <a href="/pets/${pet.id}/qr" target="_blank" class="btn-qr">Ver QR</a>
+            </div>
+          </div>
+        `).join('');
+
+      } catch (err) {
+        console.error('Error al cargar mascotas:', err);
+        listContainer.innerHTML = '<p style="color: red;">No se pudieron cargar las mascotas. Revisa el servidor.</p>';
       }
-
-      listContainer.innerHTML = pets.map(pet => `
-        <div class="pet-item">
-          <div>
-            <strong>${pet.name}</strong> ${pet.is_lost ? '🚨 <span style="color:red">(PERDIDA)</span>' : ''}<br>
-            <small>📞 ${pet.contact_phone}</small><br>
-            <small>✉️ ${pet.notification_emails || 'Sin mails asignados'}</small>
-          </div>
-          <div>
-            <a href="/pets/${pet.id}/qr" target="_blank" class="btn-qr">Ver QR</a>
-          </div>
-        </div>
-      `).join('');
-     } catch (err) {
-      console.error('Error al cargar mascotas:', err);
-     }
     }
 
-   document.getElementById('pet-form').addEventListener('submit', async (e) => {
-     e.preventDefault();
-     const name = document.getElementById('pet-name').value;
-     const contact_phone = document.getElementById('pet-phone').value;
-     const notification_emails = document.getElementById('pet-emails').value; // <-- Integrado
-     const medical_info = document.getElementById('pet-medical').value;
+    document.getElementById('pet-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('pet-name').value;
+      const contact_phone = document.getElementById('pet-phone').value;
+      const notification_emails = document.getElementById('pet-emails').value;
+      const medical_info = document.getElementById('pet-medical').value;
 
-     try {
-       const response = await fetch('/pets', {
-         method: 'POST',
-         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          name, 
-          contact_phone, 
-          notification_emails, // <-- Integrado
-          medical_info 
-        })
-      });
+      try {
+        const response = await fetch('/pets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ 
+            name, 
+            contact_phone, 
+            notification_emails, 
+            medical_info 
+          })
+        });
 
-      if (!response.ok) throw new Error('Error al registrar mascota');
+        if (!response.ok) throw new Error('Error al registrar mascota');
 
-      document.getElementById('pet-form').reset();
-      cargarMascotas();
-    } catch (err) {
-      alert(err.message);
-    }
-  });
+        document.getElementById('pet-form').reset();
+        cargarMascotas();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
 
-  cargarMascotas();
+    cargarMascotas();
   </script>
 </body>
 </html>
