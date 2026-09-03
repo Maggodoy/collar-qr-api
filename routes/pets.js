@@ -6,15 +6,6 @@ const db = require('../db');
 const nodemailer = require('nodemailer');
 const authMiddleware = require('../middleware/auth');
 
-// Configuración de nodemailer
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
 // POST /pets - Registrar mascota (Solo para usuario dueño autenticado)
 router.post('/', authMiddleware, async (req, res) => {
   try {
@@ -168,11 +159,19 @@ router.get('/:id', async (req, res) => {
       [id, ip, userAgent]
     );
 
-    // 3. Enviar email de alerta básica inmediata (sin esperar GPS)
+    // 3. Enviar email de alerta básica inmediata con transporter dinámico
     const destinatarios = (pet && pet.notification_emails) ? pet.notification_emails : process.env.NOTIFY_EMAIL;
 
     if (destinatarios) {
-      transporter.sendMail({
+      const dynamicTransporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+
+      dynamicTransporter.sendMail({
         from: `"Alerta Mascota QR" <${process.env.EMAIL_USER}>`,
         to: destinatarios,
         subject: `🚨 ¡Escanearon el collar de ${pet.name}!`,
@@ -226,16 +225,23 @@ router.post('/scans/location', async (req, res) => {
     const destinatarios = (pet && pet.notification_emails) ? pet.notification_emails : process.env.NOTIFY_EMAIL;
     const nombreMascota = pet ? pet.name : 'tu mascota';
 
-    // Verificación de destinatario antes de intentar enviar
     if (!destinatarios) {
       console.warn('⚠️ No se definió destinatario de email ni en la mascota ni en process.env.NOTIFY_EMAIL');
       return res.status(200).json({ message: 'Ubicación registrada, pero no se especificó e-mail de destino' });
     }
 
-    // 3. Enviar notificación con ubicación exacta por email
+    // 3. Crear transporter dinámico para envío de GPS
+    const dynamicTransporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
     const mapUrl = `https://maps.google.com/?q=${latitude},${longitude}`;
     
-    const mailInfo = await transporter.sendMail({
+    const mailInfo = await dynamicTransporter.sendMail({
       from: `"Alerta Mascota QR" <${process.env.EMAIL_USER}>`,
       to: destinatarios,
       subject: `📍 Ubicación GPS confirmada para ${nombreMascota}`,
@@ -262,7 +268,6 @@ router.get('/:id/qr', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Detecta el protocolo HTTPS y el dominio real a través del proxy de Render
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const protocol = req.headers['x-forwarded-proto'] || 'https';
     const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
