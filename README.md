@@ -1,49 +1,50 @@
-Collar QR / Pet Tracker SaaS 🐾
-Plataforma SaaS multiusuario desarrollada para el seguimiento y gestión de mascotas mediante códigos QR y etiquetas NFC, optimizada con un diseño minimalista móvil y alertas de ubicación GPS en tiempo real.
+# 🐾 Collar QR / Pet Tracker SaaS
 
-🚀 Características Principales
-Autenticación Segura: Sistema de registro e inicio de sesión con JWT y contraseñas cifradas con bcryptjs.
+Plataforma SaaS multiusuario optimizada para el seguimiento, gestión y localización de mascotas en tiempo real mediante códigos QR, etiquetas NFC y arquitectura PWA.
 
-Gestión Multiusuario: Cada usuario gestiona su propia lista de mascotas de forma independiente mediante un panel de control privado.
+---
 
-Alertas Personalizadas: Configuración de múltiples correos de notificación específicos por cada mascota para las alertas de escaneo.
+## 📄 Documentación Funcional & Gestión de Producto (PM)
+Este proyecto cuenta con una especificación funcional completa y un análisis de ciclo de vida de producto:
 
-Códigos QR Dinámicos: Generación automática de códigos QR únicos vinculados a la ruta de escaneo de cada animal.
+* 📋 [Historias de Usuario y Criterios de Aceptación](./docs/user-stories.md)
+* 🚀 [Visión de Producto, MVP y KPIs](./docs/product-roadmap.md)
 
-Geolocalización: Captura de coordenadas GPS al escanear el collar y envío instantáneo de alertas por correo electrónico con enlace directo a Google Maps.
+---
 
-🛠️ Tecnologías Utilizadas
-Backend: Node.js, Express
+## 🚀 Características Principales
 
-Base de Datos: PostgreSQL
+* **Autenticación & Seguridad:** Registro e inicio de sesión seguro con JWT (JSON Web Tokens) y contraseñas cifradas mediante `bcryptjs`.
+* **Gestión Multiusuario:** Panel de control privado donde cada dueño administra sus mascotas, edita información médica y cambia el estado de extravío ("Perdida / Encontrada").
+* **Sincronización PWA (Progressive Web App):** Interfaz móvil instalable en Android e iOS mediante Service Worker y Manifiesto de Aplicación para acceso rápido a la gestión de alertas.
+* **Sistema de Notificaciones Dual:**
+  1. *Alerta Inmediata por IP:* Captura de dirección IP, dispositivo (User-Agent) y timestamp en el momento exacto del escaneo (`GET /pets/:id`).
+  2. *Alerta de Geolocalización Precisa:* Envío de un segundo correo con las coordenadas GPS exactas y enlace a Google Maps si el usuario otorga permisos en el navegador (`POST /scans/location`).
+* **Resiliencia de Red:** Conexiones SMTP dinámicas por demanda (*Transporter-on-Demand*) para asegurar la entrega constante de correos en entornos Serverless/PaaS (Render).
+* **Generación Dinámica de QR:** Creación automática de códigos QR con la librería `qrcode` vinculados a la ruta de escaneo de cada animal.
 
-Seguridad: JSON Web Tokens (JWT), bcryptjs
+---
 
-Utilidades: qrcode, nodemailer
+## 🛠️ Stack Tecnológico
 
-Frontend: HTML5, CSS (Diseño Japandi), JavaScript vainilla con persistencia en localStorage
+* **Backend:** Node.js, Express.js.
+* **Base de Datos:** PostgreSQL.
+* **Manejo de Envíos:** Nodemailer (Gmail SMTP con transportes bajo demanda).
+* **Autenticación:** JWT, bcryptjs.
+* **Frontend / PWA:** HTML5, CSS3 (Diseño estilo Japandi), JavaScript nativo, Service Workers (`sw.js`) y `manifest.json`.
+* **Despliegue:** Render.
 
-⚙️ Configuración de Variables de Entorno
-Creá un archivo .env en la raíz del proyecto basándote en la siguiente estructura:
+---
 
-Fragmento de código
+## ⚙️ Configuración de Variables de Entorno
+
+Creá un archivo `.env` en la raíz del proyecto basándote en la siguiente estructura:
+
+```env
 PORT=3000
 DATABASE_URL=tu_conexion_postgresql
 JWT_SECRET=tu_secreto_jwt
 EMAIL_USER=tu_correo@gmail.com
 EMAIL_PASS=tu_contraseña_de_aplicacion
-BASE_URL=https://tu-dominio.onrender.com
-📦 Instalación y Ejecución Local
-Clonar el repositorio:
-
-Bash
-git clone https://github.com/tu-usuario/tu-repositorio.git
-cd Collares
-Instalar las dependencias:
-
-Bash
-npm install
-Iniciar el servidor localmente:
-
-Bash
-node index.js
+BASE_URL=https:// collar-qr-api.onrender.com
+NOTIFY_EMAIL=correo_fallback_alerta@gmail.com
