@@ -4,11 +4,12 @@ Plataforma SaaS multiusuario optimizada para el seguimiento, gestión y localiza
 
 ---
 
-## 📄 Documentación Funcional & Gestión de Producto (PM)
-Este proyecto cuenta con una especificación funcional completa y un análisis de ciclo de vida de producto:
+## 📄 Documentación Funcional, PM & QA
+Este proyecto cuenta con una especificación funcional completa, análisis de ciclo de vida de producto y estrategia de pruebas de calidad:
 
 * 📋 [Historias de Usuario y Criterios de Aceptación](./docs/user-stories.md)
 * 🚀 [Visión de Producto, MVP y KPIs](./docs/product-roadmap.md)
+* 🧪 [Plan de Pruebas y Matriz de QA](./docs/qa-testing-strategy.md)
 
 ---
 
@@ -46,5 +47,5 @@ DATABASE_URL=tu_conexion_postgresql
 JWT_SECRET=tu_secreto_jwt
 EMAIL_USER=tu_correo@gmail.com
 EMAIL_PASS=tu_contraseña_de_aplicacion
-BASE_URL=https:// collar-qr-api.onrender.com
+BASE_URL=[https://collar-qr-api.onrender.com](https://collar-qr-api.onrender.com)
 NOTIFY_EMAIL=correo_fallback_alerta@gmail.com
